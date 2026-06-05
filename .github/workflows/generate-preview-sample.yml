@@ -36,6 +36,7 @@ jobs:
           DATA=$(cat pressmint.json)
           echo "PRESS_COUNT=$(echo "$DATA" | jq -r '.press_count')" >> $GITHUB_OUTPUT
           echo "PRESS_PROCESS=$(echo "$DATA" | jq -c '.press_process')" >> $GITHUB_OUTPUT
+          echo "PRESS_CODE=$(echo '${{ steps.meta_load.outputs.press_process }}' | jq -r '.[0]')" >> $GITHUB_OUTPUT
       - name: Gate preview
         if: steps.meta.outputs.PRESS_COUNT != '1'
         run: |
@@ -67,7 +68,7 @@ jobs:
       - name: Publish preview branch
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          PRESS_CODE: ${{ steps.meta_load.outputs.PRESS_PROCESS | fromJson | first }}
+          PRESS_CODE: ${{ steps.meta_load.outputs.PRESS_CODE }}
           BRANCH: preview-pr-${{ github.event.pull_request.number }}--${PRESS_CODE,,}
         run: |
           set -e
