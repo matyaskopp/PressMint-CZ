@@ -92,4 +92,9 @@ jobs:
           name: pressmint-meta-pr-${{ github.event.pull_request.number }}
           path: pressmint.env
       - run: echo Done!
+      - name: Trigger preview workflow
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          event-type: pressmint-preview
+          client-payload: '{"pr": "${{ github.event.pull_request.number }}"}'
 
