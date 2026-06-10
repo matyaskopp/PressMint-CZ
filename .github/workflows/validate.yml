@@ -116,7 +116,9 @@ jobs:
                 repo: context.repo.repo,
                 artifact_id: Number(id)
               });
-            }      
+            }
+        env:
+          GH_TOKEN: ${{ github.token }}      
       - name: Save metadata artifacts
         run: |
           echo "press_count=${{ needs.Changes.outputs.press_count }}" >> pressmint.env
