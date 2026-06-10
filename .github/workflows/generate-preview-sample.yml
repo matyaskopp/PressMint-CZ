@@ -42,16 +42,69 @@ jobs:
             core.setOutput('head_sha', pr.head.sha);
             core.setOutput('head_repo', pr.head.repo.full_name);
             core.setOutput('head_ref', pr.head.ref);
-      - name: Download metadata
-        uses: actions/download-artifact@v4
+      - name: Find Validate run
+        id: run
+        uses: actions/github-script@v8
         with:
-          name: pressmint-meta-pr-${{ steps.pr.outputs.number }}
+          script: |
+            const prNumber = Number('${{ inputs.pr_number }}');
+      
+            const runs = await github.rest.actions.listWorkflowRuns({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: "validate.yml",
+              event: "pull_request",
+              status: "success"
+            });
+      
+            const run = runs.data.workflow_runs.find(r =>
+              r.pull_requests?.some(pr => pr.number === prNumber)
+            );
+      
+            if (!run) {
+              core.setFailed("No Validate run found for PR");
+            }
+      
+            core.setOutput("run_id", run.id);
+      - name: List artifacts
+        uses: actions/github-script@v8
+        id: artifact
+        with:
+          script: |
+            const runId = Number('${{ steps.run.outputs.run_id }}');
+            const artifacts =
+              await github.rest.actions.listWorkflowRunArtifacts({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: runId
+              });
+      
+            const artifact = artifacts.data.artifacts.find(
+              a => a.name === 'pressmint-meta-pr-${{steps.pr.outputs.number}}'
+            );
+      
+            if (!artifact) {
+              core.setFailed('Artifact not found');
+            }
+      
+            core.setOutput('artifact_id', artifact.id);
+      
+      - name: Download artifact
+        run: |
+          gh api \
+            repos/${{ github.repository }}/actions/artifacts/${{ steps.artifact.outputs.artifact_id }}/zip \
+            > artifact.zip
+      
+          unzip artifact.zip
+        env:
+          GH_TOKEN: ${{ github.token }}
+
       - name: Load metadata
         id: meta
         run: |
-          DATA=$(cat pressmint.json)
-          echo "PRESS_COUNT=$(echo "$DATA" | jq -r '.press_count')" >> $GITHUB_OUTPUT
-          echo "PRESS_Code=$(echo "$DATA" | jq -c '.press_process' | jq -r '.[0]')" >> $GITHUB_OUTPUT
+          source pressmint.env
+          echo "PRESS_COUNT=$press_count" >> $GITHUB_OUTPUT
+          echo "PRESS_CODE=$(echo "$press_process" | jq -r '.[0]')" >> $GITHUB_OUTPUT
       - name: Gate preview
         if: steps.meta.outputs.PRESS_COUNT != '1'
         run: |

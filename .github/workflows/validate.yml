@@ -83,7 +83,41 @@ jobs:
       press_count: ${{ needs.Changes.outputs.press_count }}
       press_process: ${{ needs.Changes.outputs.press_process }}
     steps:
-      - name: Save metadata
+      - name: Find old metadata artifacts
+        id: find
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const pr = '${{ github.event.pull_request.number }}';
+            
+            const artifacts = await github.rest.actions.listArtifactsForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo
+            });
+      
+            const old = artifacts.data.artifacts.filter(a =>
+              a.name === `pressmint-meta-pr-${pr}`
+            );
+      
+            core.setOutput("ids", old.map(a => a.id).join(","));
+      
+      - name: Delete old metadata artifacts
+        if: steps.find.outputs.ids != ''
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const ids = '${{ steps.find.outputs.ids }}'.split(',');
+      
+            for (const id of ids) {
+              if (!id) continue;
+      
+              await github.rest.actions.deleteArtifact({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                artifact_id: Number(id)
+              });
+            }      
+      - name: Save metadata artifacts
         run: |
           echo "press_count=${{ needs.Changes.outputs.press_count }}" >> pressmint.env
           echo "press_process=${{ needs.Changes.outputs.press_process }}" >> pressmint.env
